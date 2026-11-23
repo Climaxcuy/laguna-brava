@@ -1,95 +1,19 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>LAGUNA BRAVA</title>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laguna Brava</title>
 <style>
-*{margin:0;padding:0;box-sizing:border-box}html,body{width:100%;height:100%;overflow:hidden;background:#1a0f1e;font-family:'Segoe UI',Arial,sans-serif;color:#fff}
-#c{position:fixed;inset:0;display:block}
-.panel{background:rgba(12,8,20,.72);border:1px solid rgba(255,170,60,.45);border-radius:8px;padding:8px 10px;backdrop-filter:blur(2px)}
-#missionPanel{position:fixed;top:12px;left:12px;width:300px;z-index:5}
-#missionPanel h3{color:#ffb347;font-size:15px;letter-spacing:1px}
-#missionPanel .stage{color:#ffd98a;font-size:12px;margin-top:2px}
-#missionPanel .next{font-size:12px;margin-top:3px;color:#e8f4ff}
-#missionPanel .obj{font-size:12px;color:#bfe3ff}
-#dispatch{position:fixed;top:132px;left:12px;width:300px;z-index:5;font-size:11px}
-#dispatch h4{color:#ff7b7b;font-size:12px;letter-spacing:1px}
-#dispatch .unit{display:flex;justify-content:space-between;color:#ffd9d9}
-#dispatch .feed{margin-top:5px;color:#ffe9a8;max-height:64px;overflow:hidden}
-#topRight{position:fixed;top:12px;right:12px;text-align:right;z-index:5}
-#clock{font-size:14px;color:#ffd98a}
-#cash{font-size:30px;font-weight:800;color:#7dff8a;text-shadow:0 2px 6px #000}
-#stars{font-size:22px;color:#ffd23e;letter-spacing:2px}
-#wantedState{font-size:11px;color:#ff9d9d}
-#weaponWheel{position:fixed;top:118px;right:12px;display:flex;gap:4px;z-index:5}
-.slot{width:52px;height:52px;background:rgba(12,8,20,.75);border:1px solid rgba(255,255,255,.35);border-radius:8px;text-align:center;font-size:10px;padding-top:4px}
-.slot.sel{border-color:#ffb347;box-shadow:0 0 8px #ffb347}
-.slot.locked{opacity:.45}
-.slot .ic{font-size:18px;display:block}
-#bottomLeft{position:fixed;left:12px;bottom:12px;z-index:5;text-align:center}
-#minimap{border-radius:50%;border:2px solid rgba(255,170,60,.6);background:#20301c}
-#districtName{font-size:13px;color:#ffd98a;margin-top:3px;text-shadow:0 1px 3px #000}
-#respectWrap{width:180px;margin:4px auto 0;text-align:left;font-size:11px}
-#respectBarBg{height:9px;background:rgba(255,255,255,.18);border-radius:5px}
-#respectBar{height:9px;background:linear-gradient(90deg,#ff8c3a,#ffd23e);border-radius:5px;width:10%}
-#bottomRight{position:fixed;right:12px;bottom:12px;width:250px;z-index:5;text-align:right}
-#radioBox{font-size:12px;color:#9be7ff}
-#vehPanel{margin-top:6px}
-#vehPanel .model{font-size:14px;color:#ffd98a}
-#speed{font-size:38px;font-weight:800}
-#crew{position:fixed;right:12px;bottom:150px;display:flex;gap:6px;z-index:5}
-.crewCard{width:86px;background:rgba(12,8,20,.75);border:1px solid rgba(155,231,255,.5);border-radius:8px;padding:5px;font-size:10px;text-align:center}
-.crewCard .av{font-size:22px}
-.crewCard .cd{color:#ffd23e}
-#dialogue{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;width:560px;z-index:6;display:none}
-#dialogue .inner{display:flex;gap:10px;align-items:center}
-#dlgAvatar{font-size:44px}
-#dlgName{color:#ffb347;font-weight:700}
-#dlgRole{color:#9be7ff;font-size:11px}
-#dlgLine{font-size:14px}
-#banner{position:fixed;top:26%;left:50%;transform:translateX(-50%);text-align:center;z-index:7;display:none}
-#banner h1{font-size:52px;color:#ffd23e;text-shadow:0 0 22px #ff8c3a,0 3px 0 #7a2c00;letter-spacing:4px}
-#banner p{font-size:18px;color:#7dff8a}
-#prompt{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:6;font-size:16px;background:rgba(0,0,0,.65);padding:6px 14px;border-radius:6px;display:none}
-#dmgLayer{position:fixed;inset:0;pointer-events:none;z-index:4;overflow:hidden}
-.dmg{position:absolute;font-weight:800;color:#ffe14d;text-shadow:0 1px 3px #000;font-size:18px}
-#printout{position:fixed;left:50%;top:110px;transform:translateX(-50%);z-index:6;font-size:15px;color:#ffd98a;background:rgba(0,0,0,.6);padding:6px 12px;border-radius:6px;display:none}
-#healthWrap{position:fixed;left:50%;transform:translateX(-50%);bottom:110px;width:300px;z-index:5}
-.barBg{height:10px;background:rgba(255,255,255,.2);border-radius:5px;margin-top:3px}
-#hpBar{height:10px;background:#e33;border-radius:5px;width:100%}
-#arBar{height:10px;background:#3af;border-radius:5px;width:60%}
-#titleScreen{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;background:linear-gradient(180deg,rgba(40,10,50,.25),rgba(10,4,16,.88))}
-#titleScreen h1{font-size:96px;letter-spacing:10px;color:#ffd23e;text-shadow:0 0 34px #ff7b2e,0 4px 0 #5e1c00}
-#titleScreen h2{font-size:22px;color:#ffb3d9;letter-spacing:6px}
-#titleScreen .tag{margin-top:8px;font-size:16px;color:#e8f4ff;font-style:italic}
-#titleSlots{display:flex;gap:10px;margin-top:26px}
-.tslot{width:230px;background:rgba(12,8,20,.8);border:1px solid #ffb347;border-radius:10px;padding:12px;font-size:12px;cursor:pointer}
-.tslot b{color:#ffd98a;font-size:14px}
-#startBtn{margin-top:22px;font-size:20px;padding:12px 42px;background:#ff8c3a;border:none;border-radius:10px;color:#fff;font-weight:800;cursor:pointer}
-#mapScreen,#statsScreen{position:fixed;inset:0;z-index:15;background:rgba(8,6,14,.94);display:none;padding:22px;overflow:auto}
-#mapScreen h1,#statsScreen h1{color:#ffd23e;letter-spacing:3px}
-#fullMap{border:2px solid #ffb347;border-radius:10px;background:#1d2b1a}
-.cols{display:flex;gap:18px;margin-top:12px;flex-wrap:wrap}
-.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,170,60,.4);border-radius:10px;padding:12px;min-width:260px;font-size:13px}
-.card h3{color:#ffb347;margin-bottom:6px}
-button.act{background:#ff8c3a;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-weight:700;margin:2px}
-#autopilot-result{position:fixed;top:4px;left:50%;transform:translateX(-50%);z-index:30;color:#7dff8a;font-size:12px}
-</style></head><body>
-<canvas id="c"></canvas>
-<div id="autopilot-result"></div>
-<div id="missionPanel" class="panel"><h3 id="mTitle">LAGUNA BRAVA</h3><div class="stage" id="mStage">FREE ROAM</div><div class="obj" id="mObj">Meet Tío Braulio Fuentes in Puerto Lodo.</div><div class="next" id="mNext">NEXT: Reach the brass lantern marker.</div></div>
-<div id="dispatch" class="panel"><h4>📻 PATRULLA ESTATAL — DISPATCH</h4><div id="dispatchUnits"></div><div class="feed" id="dispatchFeed">All quiet on the interstate.</div></div>
-<div id="topRight"><div id="clock">18:24 · DAY 1</div><div id="cash">$250</div><div id="stars">☆☆☆☆☆</div><div id="wantedState">NOT WANTED</div></div>
-<div id="weaponWheel"></div>
-<div id="bottomLeft"><canvas id="minimap" width="180" height="180"></canvas><div id="districtName">Puerto Lodo</div><div id="respectWrap">RESPECT · <span id="rankTitle">SWAMP RUNNER</span> <span id="respectXY">0/100</span><div id="respectBarBg"><div id="respectBar"></div></div></div></div>
-<div id="crew"></div>
-<div id="bottomRight"><div id="radioBox" class="panel">📻 Laguna 91.3 — “Ciénaga Moon” · Los Faros</div><div id="vehPanel" class="panel"><div class="model" id="vehModel">ON FOOT</div><div>CONDITION <span id="vehCond">—</span></div><div><span id="speed">0</span> km/h · GEAR <span id="gear">N</span></div></div></div>
-<div id="healthWrap"><div class="barBg"><div id="hpBar"></div></div><div class="barBg"><div id="arBar"></div></div></div>
-<div id="dialogue" class="panel"><div class="inner"><div id="dlgAvatar">🧔🏽</div><div><div><span id="dlgName">Tío Braulio Fuentes</span> · <span id="dlgRole">Swamp Patriarch</span></div><div id="dlgLine"></div></div></div></div>
-<div id="banner"><h1>MISSION PASSED</h1><p id="bannerSub"></p></div>
-<div id="prompt"></div><div id="printout"></div><div id="dmgLayer"></div>
-<div id="titleScreen"><h2>CLIMAXCUY PRESENTS</h2><h1>LAGUNA BRAVA</h1><div class="tag">“The swamp provides. The highway collects.”</div><div id="titleSlots"></div><button id="startBtn">▶ START ENGINE</button><div style="margin-top:10px;font-size:12px;color:#ccc">WASD drive · E steal/board · F shoot · M map · P stats · Z/X/C crew</div></div>
-<div id="mapScreen"><h1>LAGUNA BRAVA — FULL MAP</h1><div class="cols"><canvas id="fullMap" width="640" height="480"></canvas><div class="card"><h3>DISTRICT STANDING</h3><div id="districtStanding"></div><h3 style="margin-top:10px">POI LEGEND</h3><div>⭐ Mission · 🚗 Export car · 🏁 Stunt ramp<br>🍶 Moonshine jug · ⛽ Dock / Airboat · 🏆 Faros Point delivery</div><h3 style="margin-top:10px">GPS ROUTE</h3><div id="gpsInfo">Route plotted to active objective.</div></div></div><button class="act" id="closeMap">CLOSE [M]</button></div>
-<div id="statsScreen"><h1>CAREER — STATS &amp; SAVES</h1><div class="cols"><div class="card"><h3>PROGRESS</h3><div id="pctComplete" style="font-size:44px;color:#7dff8a">0% COMPLETE</div><div id="checklist"></div></div><div class="card"><h3>MISSION MEDALS</h3><div id="medals"></div><h3 style="margin-top:8px">CAREER STATS</h3><div id="career"></div></div><div class="card"><h3>RANK LADDER</h3><div id="rankLadder"></div><h3 style="margin-top:8px">SAVE SLOTS</h3><div id="saveSlots"></div></div></div><button class="act" id="closeStats">CLOSE [P]</button></div>
-<script src="vendor/three.min.js"></script>
-<script>window.__errors=[];window.addEventListener('error',e=>{window.__errors.push(String(e.message||e.error))});</script>
-<script type="module" src="src/main.js"></script>
-</body></html>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0a08; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  /* Read aloud, never shown: the status line screen readers announce. */
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<canvas id="game" aria-label="Laguna Brava: an open-world crime game of stilt villages, airboat channels and storm-season smuggling. Move with W A S D, enter vehicles and talk with E, shoot with F or the mouse, open the full map with M, pause and stats with P."></canvas>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
