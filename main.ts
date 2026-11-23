@@ -1,84 +1,41 @@
-// LAGUNA BRAVA — hand-in launcher for the gta6-01 bounty (@climaxku / Climaxcuy).
+// A working gta6-01 entry (Node 22, standard library only): the game is this directory's
+// game/ folder, plain static files a desktop browser loads offline (game/index.html and its ES
+// modules, no library and no network request), and the program hands it in. It copies game/ and
+// screenshots/ from beside this file to /output and writes /output/dossier.json, the summary the
+// judge reads, with the vendored make.fun library. Only the plumbing, not an open world: Block
+// Dodger, a plain 2D canvas game where a paddle dodges falling blocks and catches coins, with a
+// title screen, score, lives and levels, game over and restart, flat colours and no sound. Build
+// your own open-world crime game in its place (three.js or any library you vendor under game/),
+// put your 3 or 4 PNG or JPEG screenshots in screenshots/ (the first by name is the cover) and run it.
 //
-// What this program does, in order:
-//   1. Work out where the finished entry has to land — the directory named by
-//      MAKEFUN_OUTPUT_DIR, or /output when that variable is not set.
-//   2. Copy the static game (the game/ folder beside this file) into place.
-//   3. Copy the screenshots folder the same way, when one is present.
-//   4. Ask the vendored make.fun library to describe the staged tree and
-//      write the result to dossier.json in the output directory.
-//
-// Node 22+, standard library only; the one import beyond node:* is the
-// vendored buildDossier helper that ships with the entry.
+// Serve it locally with `node serve.ts`, then open http://localhost:8080.
+// Outside the grader's container, MAKEFUN_OUTPUT_DIR stands in for /output:
+//   mkdir -p out && MAKEFUN_OUTPUT_DIR=out node main.ts
+
 import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDossier } from './vendor/makefun-game.ts';
 
-// Directory this launcher lives in; game/ and screenshots/ sit beside it.
 const here = fileURLToPath(new URL('.', import.meta.url));
+const out = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
-// The hand-in target: the caller's chosen output directory when provided,
-// otherwise the conventional /output.
-function resolveOutDir(): string {
-  return process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-}
+mkdirSync(out, { recursive: true });
+cpSync(join(here, 'game'), join(out, 'game'), { recursive: true });
+mkdirSync(join(out, 'screenshots'), { recursive: true });
+if (existsSync(join(here, 'screenshots'))) cpSync(join(here, 'screenshots'), join(out, 'screenshots'), { recursive: true });
 
-// Create a directory, including any missing parents, and tolerate it
-// already being there — every folder this launcher makes goes through here.
-function ensureDir(path: string): void {
-  mkdirSync(path, { recursive: true });
-}
-
-// Copy a whole folder tree from beside this launcher into the output tree.
-// A missing source means the entry was packaged wrong, so fail loudly and
-// name the folder instead of letting a bare filesystem error bubble up.
-function copyTree(from: string, to: string, label: string): void {
-  if (!existsSync(from)) {
-    throw new Error(`LAGUNA BRAVA hand-in: required folder missing: ${label} (${from})`);
-  }
-  cpSync(from, to, { recursive: true });
-}
-
-// Stage the playable game: create the output directory, then mirror game/
-// into it so the entry runs from the output tree exactly as authored.
-function stageGame(out: string): void {
-  ensureDir(out);
-  copyTree(join(here, 'game'), join(out, 'game'), 'game');
-}
-
-// Stage the screenshots next to the game. The target folder is created even
-// when there is nothing to copy, so the output layout never depends on
-// whether this build ships screenshots. Screenshots stay optional: a build
-// without the folder simply skips the copy.
-function stageScreenshots(out: string): void {
-  ensureDir(join(out, 'screenshots'));
-  if (existsSync(join(here, 'screenshots'))) {
-    copyTree(join(here, 'screenshots'), join(out, 'screenshots'), 'screenshots');
-  }
-}
-
-// The gta6-01 hand-in limits the dossier is measured against. They live in
-// one named place so the numbers the judges check are easy to audit against
-// the bounty rules, and they reach the vendored builder unchanged.
-const DOSSIER_LIMITS = {
-  text_max_bytes: 163840, // cap on the text the dossier may carry
-  screenshots: { max: 4, max_bytes: 262144 }, // at most 4 shots, 256 KiB each
-  game_max_files: 993, // files allowed under game/
-  game_max_bytes: 50331648, // 48 MiB total for the game tree
-  game_path_max_bytes: 1000, // longest allowed in-game path, in bytes
-};
-
-// Describe the staged entry for the judges and write the dossier as JSON.
-function writeDossier(out: string): void {
-  writeFileSync(join(out, 'dossier.json'), buildDossier(out, DOSSIER_LIMITS));
-}
-
-function main(): void {
-  const out = resolveOutDir();
-  stageGame(out);
-  stageScreenshots(out);
-  writeDossier(out);
-}
-
-main();
+// The scorer's own caps (reference/gate.json): only text_max_bytes shapes the bytes; the others refuse an entry the
+// scorer would refuse (more than 4 screenshots or one over 256 KiB; more than 993 files in game/ or 48 MiB of game
+// files, in all, or a path under game/ over 1000 bytes: game/ counts beside /output's own 1000-entry cap, its
+// screenshots/ and dossier.json).
+writeFileSync(
+  join(out, 'dossier.json'),
+  buildDossier(out, {
+    text_max_bytes: 163840,
+    screenshots: { max: 4, max_bytes: 262144 },
+    game_max_files: 993,
+    game_max_bytes: 50331648,
+    game_path_max_bytes: 1000,
+  }),
+);
