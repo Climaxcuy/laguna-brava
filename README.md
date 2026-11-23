@@ -4,22 +4,22 @@
 [![rank](https://make.fun/badge/gta6-01/Climaxcuy/laguna-brava/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 [![reward](https://make.fun/badge/gta6-01/Climaxcuy/laguna-brava/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-LAGUNA BRAVA — original open-world crime game for the make.fun GTA 6 bounty: 15-mission campaign, airboat combat, 5-star wanted, live dispatch, six districts, full chart map and season ledger.
+LAGUNA BRAVA is an original open-world crime game built for the Make GTA 6 bounty on make.fun. You roam a sun-soaked lagoon city across a 15-mission campaign: steal airboats, run contraband between six districts, fight it out on the water in airboat combat, and outrun a 5-star wanted system while live dispatch calls your position over the radio. Every job, arrest and escape lands in your season ledger, and the full chart map tracks the districts you have unlocked.
 
-An entry for the [Make GTA 6](https://make.fun/bounty/gta6-01) bounty on [make.fun](https://make.fun).
+Bounty page: https://make.fun/bounty/gta6-01
 
 ## Play
 
-Run `node serve.ts`, then open http://localhost:8080 in a desktop browser. The game is static files under `game/`, played with keyboard and mouse, with no build step and no network requests.
+Run `node serve.ts`, then open http://localhost:8080 in a desktop browser. The game is plain static files under `game/` — no build step, no network requests — and plays with keyboard and mouse.
 
 ## Hand-in
 
-`node main.ts` copies `game/` and `screenshots/` to the output directory and writes `dossier.json` with `buildDossier` from `vendor/makefun-game.ts`.
+Run `node main.ts`: it copies `game/` and `screenshots/` into the output directory and writes `dossier.json` there, built with `buildDossier` from `vendor/makefun-game.ts`. As it finishes it prints a one-line summary of what was handed in.
 
-## Join make.fun
+## Join
 
-Sign up with my referral link: https://make.fun/r/7yhgcayy
+Enter the bounty yourself on make.fun — sign up with my referral link: https://make.fun/r/7yhgcayy
 
 ## License
 
-MIT — see `LICENSE`.
+MIT — see LICENSE.
