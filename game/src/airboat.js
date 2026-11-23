@@ -1,68 +1,138 @@
-// Pilotable airboat: fan-driven, slides on water and mud, beaches on mud banks.
-import { inChannel } from './world.js';
+// The fan boat: Laguna Brava's true native vehicle. An airboat does not steer like a car —
+// the fan shoves air, the hull keeps whatever velocity it already had, and the rudder only
+// persuades. On open water it slides wide and glorious; on mud the hull bites, grips and can
+// beach; on grass it grinds itself apart. Every channel run in the story missions is this
+// one physics body with a throttle and a prayer.
 
-export class Airboat {
-  constructor(scene) {
-    const g = new THREE.Group();
-    const hull = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.7, 5.6), new THREE.MeshPhongMaterial({ color: 0x8a6a30, shininess: 40 }));
-    hull.position.y = 0.5; hull.castShadow = true; g.add(hull);
-    const seat = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 1.2), new THREE.MeshLambertMaterial({ color: 0x3a2c1c }));
-    seat.position.set(0, 1.1, 0.6); g.add(seat);
-    const cage = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.12, 6, 14), new THREE.MeshLambertMaterial({ color: 0x222222 }));
-    cage.position.set(0, 1.9, -2.2); g.add(cage);
-    this.fan = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.6, 0.5), new THREE.MeshLambertMaterial({ color: 0xd8d8d8 }));
-    this.fan.position.set(0, 1.9, -2.2); g.add(this.fan);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1.6), new THREE.MeshLambertMaterial({ color: 0x222222 }));
-    pole.position.set(0, 1.1, -2.2); g.add(pole);
-    g.position.set(300, 0.2, 306); g.rotation.y = Math.PI;
-    scene.add(g);
-    this.mesh = g; this.angle = Math.PI; this.vx = 0; this.vz = 0; this.speed = 0; this.aboard = false; this.boost = 1;
-    // Fan spray particles
-    const N = 90; this.sprayN = N;
-    this.sprayPos = new Float32Array(N * 3); this.sprayVel = [];
-    for (let i = 0; i < N; i++) { this.sprayVel.push({ x: 0, y: 0, z: 0, life: 0 }); this.sprayPos[i * 3 + 1] = -50; }
-    const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.BufferAttribute(this.sprayPos, 3));
-    this.spray = new THREE.Points(pg, new THREE.PointsMaterial({ color: 0xdff6ff, size: 0.55, transparent: true, opacity: 0.85 }));
-    scene.add(this.spray); this.sprayIdx = 0;
+import { SURFACE } from './config.js';
+import { clamp, dist } from './rng.js';
+
+export function makeAirboat(x, y, angle) {
+  return {
+    x, y, angle,
+    vx: 0, vy: 0,
+    fanSpin: 0,
+    hull: 100,
+    driver: null,      // null | 'player' | 'rival'
+    name: 'Ventilador Quintana',
+    moored: true,
+    sprayAcc: 0,
+  };
+}
+
+export function createAirboats(world) {
+  return world.moorings.map((m) => makeAirboat(m.x, m.y, m.angle));
+}
+
+/** Speed in world units per second, for the HUD and the race maths. */
+export function boatSpeed(boat) {
+  return Math.sqrt(boat.vx * boat.vx + boat.vy * boat.vy);
+}
+
+/**
+ * One step of fan-boat physics. throttle -1..1 (reverse is a weak fan brake and a slower
+ * push backwards), rudder -1..1. Returns the surface kind under the hull.
+ */
+export function stepAirboat(G, boat, throttle, rudder, dt) {
+  const world = G.world;
+  const kind = world.terrainAt(boat.x, boat.y);
+  const grip = SURFACE[kind].boat;
+  const speed = boatSpeed(boat);
+
+  if (grip === 0) {
+    // Aground on real land: the fan screams, the hull grinds, nothing moves.
+    boat.vx *= Math.max(0, 1 - 6 * dt);
+    boat.vy *= Math.max(0, 1 - 6 * dt);
+    if (Math.abs(throttle) > 0.1 && speed < 12) boat.hull -= 3.2 * dt;
+    boat.fanSpin = Math.min(1, boat.fanSpin + dt * 2) * Math.abs(throttle);
+    return kind;
   }
-  get pos() { return this.mesh.position; }
-  update(dt, input, rng) {
-    const p = this.mesh.position;
-    if (this.aboard) {
-      if (input.steer) this.angle += input.steer * dt * 1.15; // rudder turns slowly: she slides
-      const thrust = (input.fwd ? 15 : input.back ? -6 : 0) * this.boost;
-      // Fan pushes along heading; velocity keeps its own direction = classic airboat slide.
-      this.vx += Math.sin(this.angle) * thrust * dt;
-      this.vz += Math.cos(this.angle) * thrust * dt;
+
+  // The rudder only works in the fan's wash: more throttle, more authority.
+  const authority = 0.35 + 0.65 * Math.min(1, Math.abs(throttle) + speed / 300);
+  boat.angle += rudder * 1.55 * authority * dt * (throttle < 0 ? -1 : 1);
+
+  // Fan thrust along the nose.
+  const thrust = throttle * 265;
+  boat.vx += Math.cos(boat.angle) * thrust * dt;
+  boat.vy += Math.sin(boat.angle) * thrust * dt;
+
+  // Drag: water is kind along the hull and cruel across it — that mismatch is the slide.
+  const fx = Math.cos(boat.angle);
+  const fy = Math.sin(boat.angle);
+  const along = boat.vx * fx + boat.vy * fy;
+  const acrossX = boat.vx - along * fx;
+  const acrossY = boat.vy - along * fy;
+  const alongDrag = kind === 2 ? 0.9 : 0.42;   // mud bites the run
+  const acrossDrag = kind === 2 ? 2.6 : 1.15;  // mud also stops the slide: beached and grippy
+  const na = along * Math.max(0, 1 - alongDrag * dt);
+  const ncx = acrossX * Math.max(0, 1 - acrossDrag * dt);
+  const ncy = acrossY * Math.max(0, 1 - acrossDrag * dt);
+  boat.vx = na * fx + ncx;
+  boat.vy = na * fy + ncy;
+
+  const nx = boat.x + boat.vx * dt;
+  const ny = boat.y + boat.vy * dt;
+  if (world.blockedAt(nx, ny, 16)) {
+    // A dock, a house, the lighthouse: the hull stops dead and pays for it.
+    const impact = speed;
+    if (impact > 90) {
+      boat.hull -= (impact - 90) * 0.12;
+      G.audio.crash(Math.min(1, impact / 300));
+      G.camera.shake = Math.min(12, impact * 0.045);
+      if (boat.driver === 'player') G.player.hp -= (impact - 90) * 0.02;
     }
-    const onWater = inChannel(p.x, p.z) || (Math.hypot(p.x - 430, p.z - 300) < 85);
-    const drag = onWater ? 0.35 : 1.6; // mud grips: beaching bleeds speed fast
-    this.vx -= this.vx * drag * dt; this.vz -= this.vz * drag * dt;
-    p.x += this.vx * dt; p.z += this.vz * dt;
-    p.x = Math.max(180, Math.min(560, p.x)); p.z = Math.max(10, Math.min(420, p.z));
-    p.y = onWater ? 0.2 + Math.sin(p.x * 0.05) * 0.06 : 0.55; // rides up when beached on mud
-    this.beached = !onWater && Math.hypot(this.vx, this.vz) < 0.6;
-    this.mesh.rotation.y = this.angle;
-    this.mesh.rotation.z = THREE.MathUtils.clamp(-(this.vx * Math.cos(this.angle) - this.vz * Math.sin(this.angle)) * 0.012, -0.16, 0.16);
-    this.speed = Math.hypot(this.vx, this.vz);
-    this.fan.rotation.x += this.speed * dt * 4 + (this.aboard ? dt * 6 : 0);
-    // Spray behind the fan when moving on water
-    if (this.aboard && this.speed > 3 && onWater) {
-      for (let s = 0; s < 3; s++) {
-        const v = this.sprayVel[this.sprayIdx], i3 = this.sprayIdx * 3;
-        this.sprayPos[i3] = p.x - Math.sin(this.angle) * 3 + (rng() - 0.5) * 2;
-        this.sprayPos[i3 + 1] = 0.7 + rng() * 0.8;
-        this.sprayPos[i3 + 2] = p.z - Math.cos(this.angle) * 3 + (rng() - 0.5) * 2;
-        v.x = -Math.sin(this.angle) * 3 + (rng() - 0.5) * 3; v.y = 2.2 + rng() * 2; v.z = -Math.cos(this.angle) * 3 + (rng() - 0.5) * 3; v.life = 0.7;
-        this.sprayIdx = (this.sprayIdx + 1) % this.sprayN;
-      }
-    }
-    for (let i = 0; i < this.sprayN; i++) {
-      const v = this.sprayVel[i]; if (v.life <= 0) continue; v.life -= dt;
-      this.sprayPos[i * 3] += v.x * dt; this.sprayPos[i * 3 + 1] += v.y * dt; this.sprayPos[i * 3 + 2] += v.z * dt;
-      v.y -= 6 * dt; if (v.life <= 0) this.sprayPos[i * 3 + 1] = -50;
-    }
-    this.spray.geometry.attributes.position.needsUpdate = true;
-    return this.speed;
+    boat.vx *= -0.18;
+    boat.vy *= -0.18;
+  } else {
+    boat.x = nx;
+    boat.y = ny;
   }
+  boat.fanSpin += (Math.abs(throttle) - boat.fanSpin) * Math.min(1, dt * 3);
+
+  // Fan spray and wake: the white rooster-tail the screenshots love.
+  boat.sprayAcc += dt * (4 + speed * 0.12);
+  while (boat.sprayAcc > 1) {
+    boat.sprayAcc -= 1;
+    if (speed > 26) {
+      const back = boat.angle + Math.PI;
+      const side = G.rng.range(-1, 1);
+      G.particles.push({
+        x: boat.x + Math.cos(back) * 20 + Math.cos(back + Math.PI / 2) * side * 10,
+        y: boat.y + Math.sin(back) * 20 + Math.sin(back + Math.PI / 2) * side * 10,
+        vx: Math.cos(back) * speed * 0.32 + G.rng.range(-22, 22),
+        vy: Math.sin(back) * speed * 0.32 + G.rng.range(-22, 22),
+        life: 0, maxLife: G.rng.range(0.35, 0.8), size: G.rng.range(2.5, 6),
+        colour: 'rgba(230,245,245,0.5)', kind: 'spray',
+      });
+    }
+  }
+  if (boat.hull < 0) boat.hull = 0;
+  return kind;
+}
+
+/** The rival in the channel race: follows the channel polyline at a set pace, slides and all. */
+export function stepRivalBoat(G, boat, path, dt, pace) {
+  const target = path[boat.wp ?? 0];
+  if (!target) return true;
+  const toTarget = Math.atan2(target[1] - boat.y, target[0] - boat.x);
+  let delta = toTarget - boat.angle;
+  while (delta > Math.PI) delta -= Math.PI * 2;
+  while (delta < -Math.PI) delta += Math.PI * 2;
+  const rudder = clamp(delta * 2.2, -1, 1);
+  const throttle = pace * (Math.abs(delta) > 1.2 ? 0.45 : 1);
+  stepAirboat(G, boat, throttle, rudder, dt);
+  if (dist(boat.x, boat.y, target[0], target[1]) < 130) boat.wp = (boat.wp ?? 0) + 1;
+  return (boat.wp ?? 0) >= path.length;
+}
+
+/** The moored boat nearest a point, or null. */
+export function boatNear(G, x, y, range) {
+  let best = null;
+  let bestD = range;
+  for (const boat of G.boats) {
+    const d = dist(x, y, boat.x, boat.y);
+    if (d < bestD) { bestD = d; best = boat; }
+  }
+  return best;
 }

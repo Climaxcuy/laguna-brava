@@ -1,74 +1,136 @@
-// LAGUNA BRAVA — declarative game data: districts, missions, exports, crew, radio.
-export const WORLD = { w: 1200, d: 900 };
+// Laguna Brava — the fixed numbers every other module reads. World units are "steps": the
+// lagoon basin is 6400 x 4800 of them, a car is about 46 long, a person 9 wide. The canvas is
+// 1280 x 960 and the camera shows VIEW_W / zoom world units across, so zoom 1 is the honest
+// street view and the screenshot scenes push in to about 2 for their close-ups.
+
+export const VIEW_W = 1280;
+export const VIEW_H = 960;
+export const STEP = 1 / 60;
+
+export const WORLD_W = 6400;
+export const WORLD_H = 4800;
+
+/** Terrain cell size: the world is a 64 x 48 grid of these, each cell one surface kind. */
+export const CELL = 100;
+
+// Surface kinds, stored as small integers in the world grid.
+export const T_DEEP = 0;    // lagoon deep water: boats only, nobody wades
+export const T_WATER = 1;   // channel and shore water: boats, wading at the edge
+export const T_MUD = 2;     // bank mud: slow on foot, airboats beach and grip here
+export const T_GRASS = 3;   // wet grassland: the default land
+export const T_SAND = 4;    // the Faros point beaches
+export const T_DIRT = 5;    // dirt tracks between settlements
+export const T_ROAD = 6;    // paved road and the Recta highway
+export const T_WALK = 7;    // stilt-village boardwalk: foot traffic and handcarts
+export const T_FLOOR = 8;   // shop floorboards, only ever under a roof footprint
+
+/** How the surfaces read to feet, wheels and hulls: a grip multiplier per mover kind. */
+export const SURFACE = {
+  [T_DEEP]: { name: 'deep water', foot: 0, car: 0, boat: 1.0 },
+  [T_WATER]: { name: 'water', foot: 0.25, car: 0, boat: 1.0 },
+  [T_MUD]: { name: 'mud', foot: 0.45, car: 0.35, boat: 0.8 },
+  [T_GRASS]: { name: 'grass', foot: 0.9, car: 0.55, boat: 0 },
+  [T_SAND]: { name: 'sand', foot: 0.75, car: 0.45, boat: 0.25 },
+  [T_DIRT]: { name: 'dirt track', foot: 1.0, car: 0.8, boat: 0 },
+  [T_ROAD]: { name: 'paved road', foot: 1.0, car: 1.0, boat: 0 },
+  [T_WALK]: { name: 'boardwalk', foot: 1.0, car: 0.3, boat: 0 },
+  [T_FLOOR]: { name: 'floorboards', foot: 1.0, car: 0, boat: 0 },
+};
+
+// The six districts. Centres are where the map label sits and where the district's shops,
+// parked cars and porch crowds gather; radius is the "you are in" feel, not a hard border.
 export const DISTRICTS = [
-  { name: 'Puerto Lodo', x: -320, z: 220, r: 210, color: 0x8a5a2b, standing: 62 },
-  { name: 'The Interstate', x: 0, z: -40, r: 260, color: 0x555560, standing: 34 },
-  { name: 'Cañaveral Swamp', x: 330, z: 260, r: 230, color: 0x2e5d33, standing: 78 },
-  { name: 'Villa Ceniza', x: -300, z: -260, r: 200, color: 0x6b4a5e, standing: 45 },
-  { name: 'Faros Point', x: 430, z: -280, r: 170, color: 0x2b5d6e, standing: 51 },
+  { id: 'puerto-barro', name: 'PUERTO BARRO', short: 'Puerto Barro', x: 1050, y: 3750, r: 780, kind: 'village' },
+  { id: 'cienaga', name: 'CIÉNAGA VERDE', short: 'Ciénaga Verde', x: 1500, y: 2050, r: 950, kind: 'swamp' },
+  { id: 'la-recta', name: 'LA RECTA', short: 'La Recta', x: 3300, y: 620, r: 1050, kind: 'highway' },
+  { id: 'villa-brasa', name: 'VILLA BRASA', short: 'Villa Brasa', x: 5150, y: 1150, r: 820, kind: 'town' },
+  { id: 'isla-tormenta', name: 'ISLA TORMENTA', short: 'Isla Tormenta', x: 3950, y: 2950, r: 560, kind: 'island' },
+  { id: 'punta-faros', name: 'PUNTA FAROS', short: 'Punta Faros', x: 5650, y: 3950, r: 700, kind: 'point' },
 ];
-export const RADIO = [
-  { name: 'Laguna 91.3', tracks: ['“Ciénaga Moon” · Los Faros', '“Mud & Gasoline” · Brava Sisters', '“Tío Knows” · DJ Caimán'] },
-  { name: 'Interestatal 106.7', tracks: ['“Ninety in a Fifty” · Truckstop Hearts', '“Asphalt Psalm” · Vera Cruz', '“Sirens in D” · The Offramps'] },
+
+/** The smuggler family the player runs for, and the law that hunts them. */
+export const FAMILY = {
+  matriarch: 'Mamá Yara Quintana',
+  player: 'Rayo Cárdenas',
+  crew: ['Nando Quintana', 'Lupe Ferrer', 'Chuy Delgado'],
+  police: 'Patrulla Estatal',
+  heli: 'CÓNDOR-1',
+};
+
+/** Dispatch callsigns and the job each unit does when the net closes. */
+export const DISPATCH_UNITS = [
+  { callsign: 'BRAVO-5', role: 'PURSUIT' },
+  { callsign: 'BRAVO-9', role: 'PURSUIT' },
+  { callsign: 'SIERRA-2', role: 'RAMMER' },
+  { callsign: 'DELTA-7', role: 'ROADBLOCK' },
+  { callsign: 'LIMA-3', role: 'SPOTTER' },
+  { callsign: 'ORO-4', role: 'PURSUIT' },
 ];
+
+/** Weapons: slot order is the number-key order and the HUD strip order. */
 export const WEAPONS = [
-  { name: 'Fists', icon: '👊', ammo: '∞', price: 0, dmg: 6 },
-  { name: 'Machete', icon: '🔪', ammo: '∞', price: 150, dmg: 14 },
-  { name: 'Revolver', icon: '🔫', ammo: 48, price: 400, dmg: 26 },
-  { name: 'Scattergun', icon: '💥', ammo: 24, price: 900, dmg: 44 },
-  { name: 'Carbine', icon: '🎯', ammo: 120, price: 1800, dmg: 20 },
-  { name: 'Sniper', icon: '🔭', ammo: 12, price: 3200, dmg: 90, locked: true },
-  { name: 'Molotov', icon: '🔥', ammo: 6, price: 750, dmg: 55, locked: true },
+  { id: 'fists', name: 'FISTS', slot: 1, damage: 9, rate: 0.34, range: 26, spread: 0, speed: 0, ammo: Infinity, price: 0, sound: 'swing' },
+  { id: 'machete', name: 'MACHETE', slot: 2, damage: 22, rate: 0.42, range: 30, spread: 0, speed: 0, ammo: Infinity, price: 60, sound: 'swing' },
+  { id: 'revolver', name: '.38 REVOLVER', slot: 3, damage: 26, rate: 0.38, range: 520, spread: 0.012, speed: 1500, ammo: 6, price: 240, sound: 'shot' },
+  { id: 'shotgun', name: 'ESCOPETA 12G', slot: 4, damage: 13, rate: 0.95, range: 300, spread: 0.09, speed: 1250, ammo: 2, price: 420, sound: 'boom', pellets: 6 },
+  { id: 'smg', name: 'UZI ARTESANAL', slot: 5, damage: 11, rate: 0.09, range: 430, spread: 0.05, speed: 1400, ammo: 30, price: 680, sound: 'shot' },
+  { id: 'rifle', name: 'CARABINA .30', slot: 6, damage: 34, rate: 0.55, range: 760, spread: 0.004, speed: 2100, ammo: 5, price: 950, sound: 'crack' },
 ];
-export const CREW = [
-  { name: 'Nando', role: 'Airboat Mechanic', ability: 'FAN BOOST', key: 'Z', icon: '🛠️', cd: 20 },
-  { name: 'Lupe', role: 'Wheel Witch', ability: 'QUICK FIX', key: 'X', icon: '🔧', cd: 25 },
-  { name: 'Chuy', role: 'Lookout', ability: 'EYES OUT', key: 'C', icon: '🦅', cd: 18 },
+
+/** Car models that roll in the lagoon basin: name, size, pace, colour pool, worth. */
+export const CAR_MODELS = [
+  { id: 'brava', name: "Brava Charger '71", w: 25, l: 52, top: 305, accel: 210, grip: 0.92, colours: ['#c8432b', '#8f2318', '#e07b2a', '#5d1f16'], worth: 4200 },
+  { id: 'pickup', name: 'Lodo Pickup', w: 26, l: 54, top: 235, accel: 165, grip: 0.88, colours: ['#7a8894', '#4d5a52', '#96742f', '#37424e'], worth: 1500 },
+  { id: 'sedan', name: 'Ceniza Sedan', w: 24, l: 50, top: 250, accel: 175, grip: 0.9, colours: ['#b8b0a2', '#5d6e7a', '#2e2a26', '#71584a'], worth: 1100 },
+  { id: 'taxi', name: 'Taxi Brasa', w: 24, l: 50, top: 245, accel: 170, grip: 0.9, colours: ['#d9a521', '#d9a521', '#c78f1d'], worth: 900 },
+  { id: 'truck', name: 'Recta Freight Truck', w: 30, l: 86, top: 195, accel: 120, grip: 0.86, colours: ['#8a4f2c', '#54606b', '#6e3b3b'], worth: 2600 },
+  { id: 'van', name: 'Furgoneta Taller', w: 27, l: 58, top: 215, accel: 145, grip: 0.87, colours: ['#a8a396', '#476b6e', '#77543a'], worth: 1300 },
 ];
-export const EXPORT_CARS = ['Brava Charger ’69', 'Ceniza Falcon', 'Lodo Impala SS', 'Faros Roadrunner', 'Caimán Barracuda', 'Interstate GTO', 'Swampcat Challenger', 'Puerto Torino', 'Villa Monte Carlo', 'Braulio Special ’57'];
-export const POLICE_NAMES = ['BRAVO-5', 'BRAVO-9', 'SIERRA-2', 'DELTA-7', 'LIMA-3', 'GARZA'];
-export const MISSIONS = [
-  { id: 1, title: 'First Run for Tío', giver: 'Tío Braulio Fuentes', role: 'Swamp Patriarch', avatar: '🧔🏽', pay: 800, rep: 12,
-    line: 'Mijo, take my moonshine across the channel in the AIRBOAT — fan on, slide the mud, don’t spill a drop.',
-    stages: [
-      { text: 'Board the airboat at the Cañaveral dock', next: 'Press E at the fan boat', x: 300, z: 300, mode: 'airboat' },
-      { text: 'Slide the swamp channel to the drop buoy', next: 'Ride the channel north', x: 330, z: 60, mode: 'airboat' },
-      { text: 'Return to Tío Braulio in Puerto Lodo', next: 'Follow the brass lantern', x: -300, z: 210, mode: 'any' } ] },
-  { id: 2, title: 'Interstate Muscle', giver: 'Tío Braulio Fuentes', role: 'Swamp Patriarch', avatar: '🧔🏽', pay: 1400, rep: 14,
-    line: 'Steal the Brava Charger on the INTERSTATE — E to STEAL it — and outrun the Patrulla trucks to Faros.',
-    stages: [
-      { text: 'Steal the Brava Charger ’69 on the interstate', next: 'Press E — STEAL beside the car', x: 0, z: -40, mode: 'steal' },
-      { text: 'Race the interstate checkpoint', next: 'Stay on the highway, dodge trucks', x: 260, z: -40, mode: 'car' },
-      { text: 'Deliver to the Faros Point dock', next: 'Park in the gold ring', x: 430, z: -260, mode: 'car' } ] },
-  { id: 3, title: 'Ceniza Heat', giver: 'Lupe', role: 'Wheel Witch', avatar: '👩🏽‍🔧', pay: 1800, rep: 16,
-    line: 'Villa Ceniza owes us. Go on FOOT, use your SHOOTING — F to fire — and clear the plaza guards.',
-    stages: [
-      { text: 'Reach Villa Ceniza plaza on foot', next: 'Head north-west', x: -300, z: -250, mode: 'foot' },
-      { text: 'Win the plaza shootout (3 guards)', next: 'Press F to shoot, watch damage numbers', x: -285, z: -235, mode: 'combat' },
-      { text: 'Escape to Puerto Lodo', next: 'Lose the Patrulla first', x: -320, z: 220, mode: 'any' } ] },
-  { id: 4, title: 'Truck Stop Tribute', giver: 'Tío Braulio Fuentes', role: 'Swamp Patriarch', avatar: '🧔🏽', pay: 2200, rep: 18,
-    line: 'A truck on the INTERSTATE carries our tribute. RAM it, grab the crate, and bring it home.',
-    stages: [
-      { text: 'Intercept the tribute truck', next: 'Chase the orange truck marker', x: 120, z: -40, mode: 'car' },
-      { text: 'Collect the tribute crate', next: 'Stop the truck, grab the crate', x: 180, z: -30, mode: 'any' },
-      { text: 'Deliver the crate to Villa Ceniza', next: 'Gold ring at the chapel', x: -290, z: -270, mode: 'any' } ] },
-  { id: 5, title: 'Garza in the Sky', giver: 'Chuy', role: 'Lookout', avatar: '🧢', pay: 2800, rep: 20,
-    line: 'At four stars GARZA the air unit hunts you with a SPOTLIGHT. Break its line of sight under the cypress canopy.',
-    stages: [
-      { text: 'Raise wanted to 4 stars near the interstate', next: 'Cause mayhem, wait for GARZA', x: 40, z: -60, mode: 'mayhem' },
-      { text: 'Hide in Cañaveral Swamp canopy', next: 'Stay out of the spotlight', x: 350, z: 280, mode: 'any' },
-      { text: 'Report back to Chuy at Faros Point', next: 'Gold ring by the lighthouse', x: 440, z: -290, mode: 'any' } ] },
-  { id: 6, title: 'The Export List', giver: 'Tío Braulio Fuentes', role: 'Swamp Patriarch', avatar: '🧔🏽', pay: 3600, rep: 24,
-    line: 'The EXPORT LIST, mijo: named muscle cars, delivered to Faros Point dock. Start with the Caimán Barracuda.',
-    stages: [
-      { text: 'Find the Caimán Barracuda in Puerto Lodo', next: 'Teal muscle car, brass marker', x: -260, z: 180, mode: 'steal' },
-      { text: 'Export it at Faros Point dock', next: 'Drive onto the dock ring', x: 430, z: -260, mode: 'car' },
-      { text: 'Collect your export bonus from Tío', next: 'Return to Puerto Lodo', x: -300, z: 210, mode: 'any' } ] },
-  { id: 7, title: 'Laguna Brava', giver: 'Tío Braulio Fuentes', role: 'Swamp Patriarch', avatar: '🧔🏽', pay: 6000, rep: 40,
-    line: 'One last run: airboat the swamp, muscle the interstate, and light the Faros beacon. Become Laguna Brava.',
-    stages: [
-      { text: 'Airboat the full swamp channel', next: 'Fan boost with Nando [Z]', x: 330, z: 60, mode: 'airboat' },
-      { text: 'Sprint the interstate end to end', next: 'Beat the trucks to Faros', x: 300, z: -40, mode: 'car' },
-      { text: 'Light the Faros Point beacon', next: 'Stand in the lighthouse ring', x: 455, z: -300, mode: 'any' } ] },
+
+/** The named export list at Punta Faros: steal each once, deliver it to the dock crane. */
+export const EXPORT_CARS = [
+  "Brava Charger '71 — rojo quemado",
+  "Brava Charger '71 — negro ceniza",
+  'Lodo Pickup — verde taller',
+  'Ceniza Sedan — plata vieja',
+  'Taxi Brasa — amarillo Recta',
+  'Recta Freight Truck — óxido',
+  'Furgoneta Taller — azul río',
+  "Brava Charger '71 — naranja tormenta",
+  'Lodo Pickup — barro seco',
+  'Ceniza Sedan — blanco hueso',
 ];
-export const RANKS = [[0, 'SWAMP RUNNER'], [60, 'MUD DEALER'], [130, 'HIGHWAY GHOST'], [220, 'BRAVA CAPO'], [340, 'LAGUNA LEGEND']];
+
+export const SAVE_KEY = 'laguna-brava-save-v1';
+export const JUGS_TOTAL = 15;
+export const MISSIONS_TOTAL = 15;
+
+/** Which named buildings are shops, and what standing at their door offers.
+ *  Lives here, with the rest of the static tables: world.js places the buildings,
+ *  economy.js prices the services, minimap.js draws the markers — all read this. */
+export const SHOP_KINDS = {
+  guns: { label: 'ARMERÍA', action: 'Buy weapons & ammo' },
+  diner: { label: 'COMEDOR', action: 'Eat: restore health ($25)' },
+  clinic: { label: 'CLÍNICA', action: 'Full treatment ($80)' },
+  garage: { label: 'TALLER', action: 'Repair & repaint: lose the heat ($150)' },
+  boatyard: { label: 'ASTILLERO', action: 'Repair the airboat ($60)' },
+  cantina: { label: 'CANTINA', action: 'Rum & news ($10)' },
+  gas: { label: 'GASOLINERA', action: 'Fuel & snacks ($15)' },
+  motel: { label: 'MOTEL', action: 'Rest: save the game' },
+  dockhouse: { label: 'MUELLE', action: 'Export dock: deliver a listed car' },
+};
+
+/** Golden hour is the basin's postcard: the day starts at 17.4 (of 24) and drifts slowly. */
+export const DAY_START = 17.4;
+export const DAY_LENGTH = 1500; // seconds of play for a full 24h cycle
+
+/** Palette the renderer and menus share, so the whole game wears one dusk. */
+export const PALETTE = {
+  ink: '#14100c',
+  paper: '#f3e2bb',
+  gold: '#e8a33d',
+  ember: '#c8432b',
+  teal: '#2e6f6a',
+  lagoon: '#1d4e4a',
+  night: '#0d1524',
+};

@@ -1,48 +1,254 @@
-// Round textured minimap + full map screen with districts, standing, GPS route.
-import { DISTRICTS, EXPORT_CARS } from './config.js';
-import { RAMPS, JUGS } from './world.js';
-function worldToMap(x, z, S) { return [ (x + 600) / 1200 * S, (z + 450) / 900 * S ]; }
-export function drawMinimap(G) {
-  const cv = document.getElementById('minimap'), g = cv.getContext('2d'), S = 180;
-  g.clearRect(0, 0, S, S);
-  // Clip round, center on player with fixed scale
-  g.save(); g.beginPath(); g.arc(90, 90, 88, 0, 7); g.clip();
-  g.fillStyle = '#33482a'; g.fillRect(0, 0, S, S);
-  const scale = 0.55, px = G.playerPos.x, pz = G.playerPos.z;
-  const toM = (x, z) => [90 + (x - px) * scale, 90 + (z - pz) * scale];
-  // water channel
-  g.fillStyle = '#1d5d6e'; const [cx0, cz0] = toM(285, 40), [cx1, cz1] = toM(375, 330); g.fillRect(cx0, cz0, cx1 - cx0, cz1 - cz0);
-  // roads
-  g.strokeStyle = '#888'; g.lineWidth = 5;
-  for (const r of [[-600, -40, 600, -40], [-320, -220, -320, 340], [120, -80, 120, 400], [430, -300, 430, 60], [-480, 220, 160, 220], [-420, -260, 300, -260]]) {
-    const [ax, ay] = toM(r[0], r[1]), [bx, by] = toM(r[2], r[3]); g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+// The basin in miniature, twice over. The round minimap rides the HUD's bottom-left corner:
+// a 1500-unit window of the baked world map, turning blips — the player, the Patrulla, the
+// gold objective — over it, with the district's name underneath so a screenshot always says
+// where it is. The full map (M) is the same baked map grown large: every district labelled,
+// every shop a glyph, the GPS thread drawn from the player to the job, and the story's
+// numbers down the side.
+
+import { DISTRICTS, SHOP_KINDS, VIEW_H, VIEW_W, WORLD_H, WORLD_W } from './config.js';
+import { SANS, SERIF, fmtMoney } from './render.js';
+import { completion, rankName } from './economy.js';
+import { clamp, dist } from './rng.js';
+
+const MAP_R = 92;               // minimap radius, px
+const MAP_SPAN = 1500;          // world units across the minimap window
+
+export function drawMinimap(G, ctx, renderer) {
+  const cx = MAP_R + 22;
+  const cy = VIEW_H - MAP_R - 40;
+  const p = G.player;
+  ctx.save();
+  // Brass ring and glass.
+  ctx.beginPath();
+  ctx.arc(cx, cy, MAP_R + 5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(14,11,8,0.85)';
+  ctx.fill();
+  ctx.strokeStyle = '#e8a33d';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, MAP_R, 0, Math.PI * 2);
+  ctx.clip();
+  const base = renderer.minimapBase;
+  if (base) {
+    const scale = (MAP_SPAN / WORLD_W) * (base.width / 1);
+    const imgScale = (MAP_R * 2) / MAP_SPAN; // screen px per world unit
+    const bw = WORLD_W * imgScale;
+    const bh = WORLD_H * imgScale;
+    ctx.drawImage(base, cx - p.x * imgScale, cy - p.y * imgScale, bw, bh);
+    void scale;
   }
-  // search zone
-  if (G.wanted > 0) { g.fillStyle = 'rgba(255,60,60,.25)'; g.beginPath(); g.arc(90, 90, 30 + G.wanted * 9, 0, 7); g.fill(); }
-  // GPS route to objective
-  const t = G.missionTarget; if (t) { const [tx, ty] = toM(t.x, t.z); g.strokeStyle = '#ffd23e'; g.lineWidth = 2; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(90, 90); g.lineTo(tx, ty); g.stroke(); g.setLineDash([]); g.fillStyle = '#ffd23e'; g.beginPath(); g.arc(tx, ty, 5, 0, 7); g.fill(); }
-  // blips
-  for (const c of G.traffic.cars) { if (c.kind !== 'parked') continue; const [x, y] = toM(c.mesh.position.x, c.mesh.position.z); g.fillStyle = '#9be7ff'; g.fillRect(x - 2, y - 2, 4, 4); }
-  for (const u of G.police.units) { if (!u.active) continue; const [x, y] = toM(u.mesh.position.x, u.mesh.position.z); g.fillStyle = '#ff4040'; g.fillRect(x - 2, y - 2, 4, 4); }
-  for (const r of RAMPS) { if (r.done) continue; const [x, y] = toM(r.x, r.z); g.fillStyle = '#ff8c3a'; g.fillRect(x - 2, y - 2, 4, 4); }
-  // player arrow
-  g.fillStyle = '#fff'; g.save(); g.translate(90, 90); g.rotate(G.playerAngle); g.beginPath(); g.moveTo(0, -8); g.lineTo(5, 6); g.lineTo(-5, 6); g.closePath(); g.fill(); g.restore();
-  g.restore();
+  const imgScale = (MAP_R * 2) / MAP_SPAN;
+  const toMap = (x, y) => ({ x: cx + (x - p.x) * imgScale, y: cy + (y - p.y) * imgScale });
+  // Objective thread.
+  const mk = G.missions.marker(G);
+  if (mk) {
+    const m = toMap(mk.x, mk.y);
+    ctx.strokeStyle = 'rgba(232,163,61,0.75)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(clamp(m.x, cx - MAP_R, cx + MAP_R), clamp(m.y, cy - MAP_R, cy + MAP_R));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (Math.abs(m.x - cx) < MAP_R && Math.abs(m.y - cy) < MAP_R) {
+      ctx.fillStyle = '#e8a33d';
+      ctx.beginPath();
+      ctx.arc(m.x, m.y, 5 + Math.sin(G.time * 3.2) * 1.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Blips: blue law, white traffic, red trouble.
+  for (const unit of G.police.units) {
+    const m = toMap(unit.car.x, unit.car.y);
+    if (Math.abs(m.x - cx) > MAP_R || Math.abs(m.y - cy) > MAP_R) continue;
+    ctx.fillStyle = Math.floor(G.time * 3.4) % 2 ? '#5aa2ff' : '#ff5a4d';
+    ctx.fillRect(m.x - 3, m.y - 3, 6, 6);
+  }
+  for (const ped of G.peds) {
+    if (!ped.hostile || ped.down) continue;
+    const m = toMap(ped.x, ped.y);
+    if (Math.abs(m.x - cx) > MAP_R || Math.abs(m.y - cy) > MAP_R) continue;
+    ctx.fillStyle = '#ff7a5c';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // The player: a gold arrow that points the way the nose points.
+  ctx.translate(cx, cy);
+  ctx.rotate(p.angle);
+  ctx.fillStyle = '#f3e2bb';
+  ctx.beginPath();
+  ctx.moveTo(8, 0);
+  ctx.lineTo(-6, -5.5);
+  ctx.lineTo(-6, 5.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#14100c';
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  ctx.restore();
+  // District name under the glass, and the water's name when the map is all lagoon.
+  const d = G.world.districtAt(p.x, p.y);
+  ctx.fillStyle = 'rgba(14,11,8,0.78)';
+  const label = d.name;
+  ctx.font = 'bold 14px ' + SANS;
+  const tw = ctx.measureText(label).width + 18;
+  ctx.fillRect(cx - tw / 2, cy + MAP_R + 10, tw, 22);
+  ctx.fillStyle = '#e8a33d';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, cx, cy + MAP_R + 26);
+  ctx.textAlign = 'left';
 }
-export function drawFullMap(G) {
-  const cv = document.getElementById('fullMap'), g = cv.getContext('2d'), W = 640, H = 480;
-  g.fillStyle = '#26361f'; g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 900; i++) { g.fillStyle = `rgba(0,0,0,${(i % 7) * 0.02})`; g.fillRect((i * 53) % W, (i * 37) % H, 4, 4); }
-  const toM = (x, z) => worldToMap(x, z, W).map((v, i) => i === 0 ? v : (z + 450) / 900 * H);
-  g.fillStyle = '#1d5d6e'; const [wx, wy] = toM(285, 40); g.fillRect(wx, wy, (375 - 285) / 1200 * W, (330 - 40) / 900 * H);
-  g.fillStyle = '#1d5d6e'; g.beginPath(); const [bx, by] = toM(470, -330); g.fillRect(bx - 90, by - 50, 190, 100);
-  g.strokeStyle = '#999'; g.lineWidth = 7; g.beginPath(); let [ax, ay] = toM(-600, -40); g.moveTo(ax, ay); [ax, ay] = toM(600, -40); g.lineTo(ax, ay); g.stroke();
-  g.lineWidth = 4; for (const r of [[-320, -220, -320, 340], [120, -80, 120, 400], [430, -300, 430, 60], [-480, 220, 160, 220], [-420, -260, 300, -260]]) { g.beginPath(); const [x1, y1] = toM(r[0], r[1]); g.moveTo(x1, y1); const [x2, y2] = toM(r[2], r[3]); g.lineTo(x2, y2); g.stroke(); }
-  for (const d of DISTRICTS) { const [x, y] = toM(d.x, d.z); g.fillStyle = 'rgba(255,210,62,.16)'; g.beginPath(); g.arc(x, y, d.r / 1200 * W, 0, 7); g.fill(); g.fillStyle = '#ffd98a'; g.font = 'bold 15px Arial'; g.textAlign = 'center'; g.fillText(d.name, x, y); }
-  for (const r of RAMPS) { const [x, y] = toM(r.x, r.z); g.fillStyle = r.done ? '#666' : '#ff8c3a'; g.fillText('🏁', x, y); }
-  for (const j of JUGS) { if (j.taken) continue; const [x, y] = toM(j.mesh.position.x, j.mesh.position.z); g.fillText('🍶', x, y); }
-  const t = G.missionTarget; if (t) { const [x1, y1] = toM(G.playerPos.x, G.playerPos.z), [x2, y2] = toM(t.x, t.z); g.strokeStyle = '#ffd23e'; g.setLineDash([7, 5]); g.beginPath(); g.moveTo(x1, y1); g.lineTo(x2, y2); g.stroke(); g.setLineDash([]); g.fillStyle = '#ffd23e'; g.font = '20px Arial'; g.fillText('⭐', x2, y2); }
-  const [pxx, pyy] = toM(G.playerPos.x, G.playerPos.z); g.fillStyle = '#fff'; g.beginPath(); g.arc(pxx, pyy, 6, 0, 7); g.fill();
-  document.getElementById('districtStanding').innerHTML = DISTRICTS.map(d => `${d.name}: <b style="color:#ffd98a">${d.standing + Math.floor(G.respect / 12)}%</b> standing`).join('<br>');
-  document.getElementById('gpsInfo').innerHTML = t ? `GPS route plotted: <b>${Math.round(Math.hypot(t.x - G.playerPos.x, t.z - G.playerPos.z))} m</b> to objective.<br>Exports delivered at Faros Point dock: ${G.exportsDone}/10<br>Next export: ${EXPORT_CARS[G.exportsDone % 10]}` : 'No active objective.';
+
+/** The full map screen: the whole basin, its names, its errands, and the story so far. */
+export function drawFullMap(G, ctx, renderer) {
+  // Fully opaque: at 0.88 the paused world ghosted through the margins —
+  // stray cars and HUD panels bleeding around the chart's edges (round-1 map).
+  ctx.fillStyle = '#0a0806';
+  ctx.fillRect(0, 0, VIEW_W, VIEW_H);
+  const base = renderer.minimapBase;
+  const mapX = 36;
+  const mapY = 70;
+  const mapW = 880;
+  const mapH = 660;
+  ctx.fillStyle = '#0e2a2c';
+  ctx.fillRect(mapX - 6, mapY - 6, mapW + 12, mapH + 12);
+  if (base) ctx.drawImage(base, mapX, mapY, mapW, mapH);
+  const sx = mapW / WORLD_W;
+  const sy = mapH / WORLD_H;
+  const toMap = (x, y) => ({ x: mapX + x * sx, y: mapY + y * sy });
+
+  // District names, letter-spaced like a chart.
+  ctx.textAlign = 'center';
+  for (const d of DISTRICTS) {
+    const m = toMap(d.x, d.y);
+    ctx.font = 'bold 17px ' + SERIF;
+    ctx.fillStyle = 'rgba(10,8,6,0.55)';
+    const spaced = d.name.split('').join(' ');
+    const tw = ctx.measureText(spaced).width + 16;
+    ctx.fillRect(m.x - tw / 2, m.y - 14, tw, 24);
+    ctx.fillStyle = '#f3e2bb';
+    ctx.fillText(spaced, m.x, m.y + 4);
+  }
+  // Shop glyphs.
+  ctx.font = 'bold 11px ' + SANS;
+  for (const b of G.world.buildings) {
+    const shop = SHOP_KINDS[b.kind];
+    if (!shop) continue;
+    const m = toMap(b.doorX, b.doorY);
+    ctx.fillStyle = '#e8a33d';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#14100c';
+    ctx.fillText(shop.label[0], m.x, m.y + 4);
+  }
+  // GPS thread to the objective.
+  const p = G.player;
+  const mk = G.missions.marker(G);
+  const pm = toMap(p.x, p.y);
+  if (mk) {
+    const m = toMap(mk.x, mk.y);
+    ctx.strokeStyle = '#e8a33d';
+    ctx.lineWidth = 2.6;
+    ctx.setLineDash([9, 7]);
+    ctx.beginPath();
+    ctx.moveTo(pm.x, pm.y);
+    ctx.lineTo(m.x, m.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#e8a33d';
+    ctx.beginPath();
+    ctx.arc(m.x, m.y, 8 + Math.sin(G.time * 3.2) * 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#14100c';
+    ctx.font = 'bold 11px ' + SANS;
+    ctx.fillText('★', m.x, m.y + 4);
+  }
+  // Player arrow.
+  ctx.save();
+  ctx.translate(pm.x, pm.y);
+  ctx.rotate(p.angle);
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(10, 0);
+  ctx.lineTo(-7, -6.5);
+  ctx.lineTo(-7, 6.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Cop blips.
+  for (const unit of G.police.units) {
+    const m = toMap(unit.car.x, unit.car.y);
+    ctx.fillStyle = '#5aa2ff';
+    ctx.fillRect(m.x - 3.5, m.y - 3.5, 7, 7);
+  }
+
+  // Header and the story column.
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#f3e2bb';
+  ctx.font = 'bold 30px ' + SERIF;
+  ctx.fillText('LAGUNA BRAVA', mapX, 44);
+  ctx.fillStyle = '#e8a33d';
+  ctx.font = '15px ' + SANS;
+  ctx.fillText('Carta de la cuenca · temporada de tormentas', mapX + 300, 44);
+
+  const x0 = 948;
+  let y = 96;
+  ctx.fillStyle = '#f3e2bb';
+  ctx.font = 'bold 19px ' + SERIF;
+  ctx.fillText('LA TEMPORADA', x0, y);
+  y += 14;
+  ctx.strokeStyle = '#e8a33d';
+  ctx.beginPath();
+  ctx.moveTo(x0, y);
+  ctx.lineTo(x0 + 280, y);
+  ctx.stroke();
+  y += 34;
+  const pct = Math.round(completion(G) * 100);
+  ctx.font = 'bold 44px ' + SERIF;
+  ctx.fillStyle = '#e8a33d';
+  ctx.fillText(pct + '%', x0, y);
+  ctx.font = '15px ' + SANS;
+  ctx.fillStyle = '#f3e2bb';
+  ctx.fillText('COMPLETE', x0 + 118, y);
+  y += 30;
+  const rows = [
+    ['STORY', `${G.stats.missionsDone}/15 jobs`],
+    ['DINERO', fmtMoney(p.cash)],
+    ['RESPETO', `${Math.round(p.rep)} · ${rankName(p.rep)}`],
+    ['GARRAFAS', `${G.stats.jugs}/15`],
+    ['EXPORTACIONES', `${G.stats.exports}/10`],
+    ['DISTRITO', G.world.districtAt(p.x, p.y).short],
+  ];
+  for (const [k, v] of rows) {
+    ctx.font = 'bold 12.5px ' + SANS;
+    ctx.fillStyle = '#b8a888';
+    ctx.fillText(k, x0, y);
+    ctx.font = 'bold 16.5px ' + SANS;
+    ctx.fillStyle = '#f3e2bb';
+    ctx.fillText(v, x0, y + 21);
+    y += 46;
+  }
+  // District checklist with the water and the field.
+  y += 6;
+  ctx.font = 'bold 15px ' + SERIF;
+  ctx.fillStyle = '#f3e2bb';
+  ctx.fillText('DISTRITOS', x0, y);
+  y += 24;
+  ctx.font = '13.5px ' + SANS;
+  for (const d of DISTRICTS) {
+    const here = G.world.districtAt(p.x, p.y).id === d.id;
+    ctx.fillStyle = here ? '#e8a33d' : '#cbbfa5';
+    ctx.fillText((here ? '▸ ' : '· ') + d.short, x0 + 4, y);
+    y += 20;
+  }
+  y += 12;
+  ctx.fillStyle = '#b8a888';
+  ctx.font = '12.5px ' + SANS;
+  ctx.fillText('M — cerrar el mapa', x0, y);
+  ctx.fillText('La línea dorada es tu GPS.', x0, y + 18);
+  void dist;
 }
