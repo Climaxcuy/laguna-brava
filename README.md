@@ -1,24 +1,25 @@
 # LAGUNA BRAVA
 
-An open-world crime game for gta6-01, built for **@climaxku**. A wild lagoon city of stilt
-villages, airboat channels and storm-season smuggling: fifteen story jobs for Mamá Yara
-Quintana, a five-star Patrulla Estatal with named dispatch units and a helicopter, shops,
-exports, hidden rum jugs, and a hurricane on the horizon.
+[![make.fun · gta6-01](https://make.fun/badge/gta6-01.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![rank](https://make.fun/badge/gta6-01/Climaxcuy/laguna-brava/rank.svg)](https://make.fun/bounty/gta6-01/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
+[![reward](https://make.fun/badge/gta6-01/Climaxcuy/laguna-brava/reward.svg)](https://make.fun/bounty/gta6-01?utm_source=github&utm_medium=readme&utm_campaign=gta6-01)
 
-## Play it
+LAGUNA BRAVA — original open-world crime game for the make.fun GTA 6 bounty: 15-mission campaign, airboat combat, 5-star wanted, live dispatch, six districts, full chart map and season ledger.
 
-Serve `game/` statically (or run `node serve.ts`) and open `index.html`.
-`node main.ts` with `MAKEFUN_OUTPUT_DIR` set produces the hand-in (game + screenshots +
-dossier.json).
+An entry for the [Make GTA 6](https://make.fun/bounty/gta6-01) bounty on [make.fun](https://make.fun).
 
-- **WASD** move / drive · **E** enter, exit, talk, buy · **F / click** shoot · **1–6** weapons
-- **M** full map · **P** pause & stats · **N** night · **R** radio · **Shift** run
-- `?smoke=1` runs the scripted self-test (job 1 end-to-end, driving, boating, gunfire,
-  five stars, shop, save/load) and reports in the page title.
-- `?shot=chase|action|map|passed&seed=11` stages the four judged screenshots.
+## Play
 
-## Layout
+Run `node serve.ts`, then open http://localhost:8080 in a desktop browser. The game is static files under `game/`, played with keyboard and mouse, with no build step and no network requests.
 
-`game/src/` — one job per ES module: `world` (the basin), `vehicles`, `airboat`, `peds`,
-`police`, `combat`, `missions` (the 15 jobs), `economy` (shops, pickups, saves), `render`
-(baked terrain chunks, entities, the grade), `hud`, `minimap`, `menus`, `shots`, `main`.
+## Hand-in
+
+`node main.ts` copies `game/` and `screenshots/` to the output directory and writes `dossier.json` with `buildDossier` from `vendor/makefun-game.ts`.
+
+## Join make.fun
+
+Sign up with my referral link: https://make.fun/r/7yhgcayy
+
+## License
+
+MIT — see `LICENSE`.
